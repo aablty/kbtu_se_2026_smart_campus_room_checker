@@ -1,46 +1,45 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, Clock, DoorOpen, Search } from "lucide-react";
 
 import { RoomCard } from "@/components/RoomCard";
+import { RoomFilters } from "@/components/RoomFilters";
+import { EmptyState } from "@/components/EmptyState";
 import { ResultBanner } from "@/components/ResultBanner";
 import { Timeline } from "@/components/Timeline";
 import { RoomBookings } from "@/components/RoomBookings";
 
-import { rooms as sampleRooms } from "@/lib/sampleData";
-import { checkAvailability, formatTime } from "@/lib/availability";
-import type { CheckResult, Room } from "@/lib/types";
+import { rooms as sampleRooms, EQUIPMENT_OPTIONS } from "@/lib/sampleData";
+import { checkAvailability } from "@/lib/availability";
+import { filterRooms } from "@/lib/filtering";
+import { formatTime, timeToMinutes, nowDefault, defaultInterval } from "@/lib/time";
+import type { CheckResult, Room, RoomFilters as RoomFiltersState } from "@/lib/types";
 import { MAX_DURATION } from "@/lib/types";
 
-function nowDefault(): number {
-  const d = new Date();
-  return d.getHours() * 60 + d.getMinutes();
-}
-
-function defaultInterval(now: number): { start: string; end: string } {
-  let start = now + 30;
-  let end = start + 60;
-  if (end > 1440) {
-    end = 1440;
-    start = end - 60;
-  }
-  if (start <= now) {
-    start = now + 1;
-    end = Math.min(start + 60, 1440);
-  }
-  return { start: formatTime(start), end: formatTime(end) };
-}
+const INITIAL_FILTERS: RoomFiltersState = { minAttendees: 0, requiredEquipment: [] };
 
 function App() {
   const [rooms] = useState<Room[]>(sampleRooms);
+  const [filters, setFilters] = useState<RoomFiltersState>(INITIAL_FILTERS);
   const [selectedId, setSelectedId] = useState<string>(rooms[0].id);
   const [nowMinutes, setNowMinutes] = useState<number>(nowDefault);
   const [startInput, setStartInput] = useState<string>(() => defaultInterval(nowMinutes).start);
   const [endInput, setEndInput] = useState<string>(() => defaultInterval(nowMinutes).end);
   const [result, setResult] = useState<CheckResult | null>(null);
 
+  const visibleRooms = useMemo(() => filterRooms(rooms, filters), [rooms, filters]);
+
+  // F5: if the current selection is filtered out, fall back to the first
+  // visible room (or none) and clear any stale availability result.
+  useEffect(() => {
+    if (!visibleRooms.some((r) => r.id === selectedId)) {
+      setSelectedId(visibleRooms[0]?.id ?? "");
+      setResult(null);
+    }
+  }, [visibleRooms, selectedId]);
+
   const selectedRoom = useMemo(
-    () => rooms.find((r) => r.id === selectedId) ?? rooms[0],
-    [rooms, selectedId],
+    () => visibleRooms.find((r) => r.id === selectedId) ?? null,
+    [visibleRooms, selectedId],
   );
 
   const startMinutes = timeToMinutes(startInput);
@@ -49,6 +48,10 @@ function App() {
     startMinutes != null && endMinutes != null ? endMinutes - startMinutes : null;
 
   const handleCheck = () => {
+    if (!selectedRoom) {
+      setResult({ decision: "unavailable", reason: "Select a room first." });
+      return;
+    }
     if (startMinutes == null) {
       setResult({
         decision: "unavailable",
@@ -68,6 +71,11 @@ function App() {
   };
 
   const handleReset = () => {
+    setResult(null);
+  };
+
+  const handleSelectRoom = (roomId: string) => {
+    setSelectedId(roomId);
     setResult(null);
   };
 
@@ -94,23 +102,26 @@ function App() {
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
           <section aria-label="Room list" className="space-y-3">
+            <RoomFilters filters={filters} equipmentOptions={EQUIPMENT_OPTIONS} onChange={setFilters} />
+
             <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-600">
               <DoorOpen className="h-4 w-4" />
-              Rooms
+              Rooms ({visibleRooms.length})
             </h2>
-            <div className="space-y-2.5">
-              {rooms.map((room) => (
-                <RoomCard
-                  key={room.id}
-                  room={room}
-                  isSelected={room.id === selectedId}
-                  onSelect={() => {
-                    setSelectedId(room.id);
-                    setResult(null);
-                  }}
-                />
-              ))}
-            </div>
+            {visibleRooms.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <div className="space-y-2.5">
+                {visibleRooms.map((room) => (
+                  <RoomCard
+                    key={room.id}
+                    room={room}
+                    isSelected={room.id === selectedId}
+                    onSelect={() => handleSelectRoom(room.id)}
+                  />
+                ))}
+              </div>
+            )}
           </section>
 
           <section aria-label="Availability checker" className="space-y-5">
@@ -237,11 +248,11 @@ function App() {
 
             <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
               <h2 className="text-sm font-semibold text-slate-600">
-                Day timeline — {selectedRoom.name}
+                Day timeline — {selectedRoom ? selectedRoom.name : "No room selected"}
               </h2>
               <div className="mt-4">
                 <Timeline
-                  bookings={selectedRoom.bookings}
+                  bookings={selectedRoom?.bookings ?? []}
                   candidateStart={startMinutes}
                   candidateEnd={endMinutes}
                   nowMinutes={nowMinutes}
@@ -251,7 +262,7 @@ function App() {
 
             <ResultBanner result={result} />
 
-            <RoomBookings room={selectedRoom} />
+            {selectedRoom && <RoomBookings room={selectedRoom} />}
           </section>
         </div>
 
@@ -261,16 +272,6 @@ function App() {
       </main>
     </div>
   );
-}
-
-function timeToMinutes(value: string): number | null {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
-  if (!match) return null;
-  const h = parseInt(match[1], 10);
-  const m = parseInt(match[2], 10);
-  if (h === 24 && m === 0) return 1440;
-  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
-  return h * 60 + m;
 }
 
 export default App;

@@ -14,7 +14,8 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   test: {
-    environment: 'node',
-    include: ['src/**/*.test.ts'],
+    environment: 'jsdom',
+    globals: true,
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
 });

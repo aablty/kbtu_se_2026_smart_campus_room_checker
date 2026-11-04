@@ -1,11 +1,19 @@
 import type { Room } from "./types";
 
+export const EQUIPMENT_OPTIONS = [
+  "Whiteboard",
+  "Projector",
+  "Video Conferencing",
+  "Computers",
+] as const;
+
 export const rooms: Room[] = [
   {
     id: "A101",
     name: "A-101 · Study Lab",
     building: "Science Block",
     capacity: 24,
+    equipment: ["Whiteboard", "Projector"],
     blocked: false,
     bookings: [
       { id: "b1", start: 540, end: 600, title: "Physics Recitation", bookedBy: "Prof. Lin" },
@@ -17,6 +25,7 @@ export const rooms: Room[] = [
     name: "B-204 · Seminar Room",
     building: "Humanities Wing",
     capacity: 12,
+    equipment: ["Whiteboard"],
     blocked: true,
     bookings: [
       { id: "b3", start: 480, end: 570, title: "Maintenance", bookedBy: "Facilities" },
@@ -27,6 +36,7 @@ export const rooms: Room[] = [
     name: "C-310 · Lecture Hall",
     building: "Main Building",
     capacity: 80,
+    equipment: ["Projector", "Video Conferencing"],
     blocked: false,
     bookings: [
       { id: "b4", start: 600, end: 690, title: "CS Colloquium", bookedBy: "Dept. of Computing" },
@@ -38,6 +48,7 @@ export const rooms: Room[] = [
     name: "D-105 · Project Room",
     building: "Engineering Quad",
     capacity: 6,
+    equipment: ["Whiteboard", "Computers"],
     blocked: false,
     bookings: [
       { id: "b6", start: 870, end: 930, title: "Capstone Sync", bookedBy: "Team Photon" },

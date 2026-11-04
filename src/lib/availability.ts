@@ -1,5 +1,8 @@
 import type { Booking, CheckResult, Room } from "./types";
 import { MAX_DURATION, MINUTE_MAX } from "./types";
+import { formatTime } from "./time";
+
+export { formatTime };
 
 export function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
   return aStart < bEnd && bStart < aEnd;
@@ -57,12 +60,4 @@ export function checkAvailability(
   }
 
   return { decision: "available", reason: "This slot is open and ready to book." };
-}
-
-export function formatTime(minutes: number): string {
-  if (minutes >= MINUTE_MAX) return "24:00";
-  const m = ((minutes % MINUTE_MAX) + MINUTE_MAX) % MINUTE_MAX;
-  const h = Math.floor(m / 60);
-  const mm = m % 60;
-  return `${h.toString().padStart(2, "0")}:${mm.toString().padStart(2, "0")}`;
 }
