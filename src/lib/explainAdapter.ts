@@ -45,13 +45,25 @@ export async function explainAvailability(
 ): Promise<ExplainResponse> {
   if (!isValid(request)) return FALLBACK;
 
+  // Defensive: reasonCode is a trusted union today (it only ever comes from
+  // checkAvailability), but the template lookup must not crash if this
+  // adapter is ever called from a less-trusted boundary (e.g. a real
+  // server response) with an unrecognized value.
+  const template = TEMPLATES[request.reasonCode];
+  if (!template) return FALLBACK;
+
   const timeoutMs = opts.timeoutMs ?? 3000;
+  let workTimer: ReturnType<typeof setTimeout>;
+  let timeoutTimer: ReturnType<typeof setTimeout>;
   const work = new Promise<ExplainResponse>((resolve) => {
-    setTimeout(() => resolve({ explanation: TEMPLATES[request.reasonCode](request) }), 150);
+    workTimer = setTimeout(() => resolve({ explanation: template(request) }), 150);
   });
   const timeout = new Promise<ExplainResponse>((resolve) => {
-    setTimeout(() => resolve(FALLBACK), timeoutMs);
+    timeoutTimer = setTimeout(() => resolve(FALLBACK), timeoutMs);
   });
 
-  return Promise.race([work, timeout]);
+  const result = await Promise.race([work, timeout]);
+  clearTimeout(workTimer!);
+  clearTimeout(timeoutTimer!);
+  return result;
 }

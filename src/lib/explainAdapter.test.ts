@@ -56,4 +56,11 @@ describe("explainAvailability", () => {
     const res = await explainAvailability(makeRequest(), { timeoutMs: 1 });
     expect(res.explanation).toMatch(/unavailable/i);
   });
+
+  it("E09: unrecognized reasonCode (e.g. from an untrusted boundary) -> safe fallback, no throw", async () => {
+    const res = await explainAvailability(
+      makeRequest({ reasonCode: "not-a-real-code" as ExplainRequest["reasonCode"] }),
+    );
+    expect(res.explanation).toMatch(/unavailable/i);
+  });
 });
