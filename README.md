@@ -36,9 +36,10 @@ npm run preview   # preview the production build
 ## Test
 
 ```bash
-npm test          # vitest run (31 tests)
+npm test          # vitest run (35 tests)
 npm run typecheck # tsc --noEmit
 npm run lint      # eslint
+npm run audit:prod # dependency vulnerability check for runtime packages
 ```
 
 ## Project structure

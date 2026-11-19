@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, Clock, DoorOpen, Search } from "lucide-react";
 
 import { RoomCard } from "@/components/RoomCard";
 import { RoomFilters } from "@/components/RoomFilters";
 import { EmptyState } from "@/components/EmptyState";
 import { ResultBanner } from "@/components/ResultBanner";
+import { ExplanationPanel } from "@/components/ExplanationPanel";
 import { Timeline } from "@/components/Timeline";
 import { RoomBookings } from "@/components/RoomBookings";
 
 import { rooms as sampleRooms, EQUIPMENT_OPTIONS } from "@/lib/sampleData";
 import { checkAvailability } from "@/lib/availability";
+import { explainAvailability } from "@/lib/explainAdapter";
 import { filterRooms } from "@/lib/filtering";
 import { formatTime, timeToMinutes, nowDefault, defaultInterval } from "@/lib/time";
 import type { CheckResult, Room, RoomFilters as RoomFiltersState } from "@/lib/types";
@@ -25,15 +27,30 @@ function App() {
   const [startInput, setStartInput] = useState<string>(() => defaultInterval(nowMinutes).start);
   const [endInput, setEndInput] = useState<string>(() => defaultInterval(nowMinutes).end);
   const [result, setResult] = useState<CheckResult | null>(null);
+  const [explanation, setExplanation] = useState<string | null>(null);
+  const [explaining, setExplaining] = useState(false);
 
   const visibleRooms = useMemo(() => filterRooms(rooms, filters), [rooms, filters]);
+
+  // Bumped on every clearResult(), so a still-pending explainAvailability
+  // response can detect it has gone stale and must not repaint the panel.
+  const explainTokenRef = useRef(0);
+
+  // Any input that invalidates the current result must also drop the
+  // explanation, otherwise it keeps describing a result that no longer applies.
+  const clearResult = () => {
+    explainTokenRef.current += 1;
+    setResult(null);
+    setExplanation(null);
+    setExplaining(false);
+  };
 
   // F5: if the current selection is filtered out, fall back to the first
   // visible room (or none) and clear any stale availability result.
   useEffect(() => {
     if (!visibleRooms.some((r) => r.id === selectedId)) {
       setSelectedId(visibleRooms[0]?.id ?? "");
-      setResult(null);
+      clearResult();
     }
   }, [visibleRooms, selectedId]);
 
@@ -48,14 +65,16 @@ function App() {
     startMinutes != null && endMinutes != null ? endMinutes - startMinutes : null;
 
   const handleCheck = () => {
+    clearResult();
     if (!selectedRoom) {
-      setResult({ decision: "unavailable", reason: "Select a room first." });
+      setResult({ decision: "unavailable", reason: "Select a room first.", reasonCode: "invalid-time" });
       return;
     }
     if (startMinutes == null) {
       setResult({
         decision: "unavailable",
         reason: "Please enter valid start and end times.",
+        reasonCode: "invalid-time",
       });
       return;
     }
@@ -63,6 +82,7 @@ function App() {
       setResult({
         decision: "unavailable",
         reason: "Enter the end time in HH:MM format. Use 24:00 for end of day.",
+        reasonCode: "invalid-time",
       });
       return;
     }
@@ -71,12 +91,28 @@ function App() {
   };
 
   const handleReset = () => {
-    setResult(null);
+    clearResult();
   };
 
   const handleSelectRoom = (roomId: string) => {
     setSelectedId(roomId);
-    setResult(null);
+    clearResult();
+  };
+
+  const handleExplain = async () => {
+    if (!selectedRoom || !result || startMinutes == null || endMinutes == null) return;
+    const token = ++explainTokenRef.current;
+    setExplaining(true);
+    const res = await explainAvailability({
+      roomLabel: selectedRoom.name,
+      startLabel: formatTime(startMinutes),
+      endLabel: formatTime(endMinutes),
+      isAvailable: result.decision === "available",
+      reasonCode: result.reasonCode,
+    });
+    if (explainTokenRef.current !== token) return; // stale: input changed while awaiting
+    setExplanation(res.explanation);
+    setExplaining(false);
   };
 
   return (
@@ -138,7 +174,7 @@ function App() {
                     onChange={(e) => {
                       const m = timeToMinutes(e.target.value);
                       if (m != null) setNowMinutes(m);
-                      setResult(null);
+                      clearResult();
                     }}
                     className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
@@ -167,7 +203,7 @@ function App() {
                     value={startInput}
                     onChange={(e) => {
                       setStartInput(e.target.value);
-                      setResult(null);
+                      clearResult();
                     }}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
@@ -191,7 +227,7 @@ function App() {
                     value={endInput}
                     onChange={(e) => {
                       setEndInput(e.target.value);
-                      setResult(null);
+                      clearResult();
                     }}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
@@ -243,6 +279,14 @@ function App() {
                 >
                   Clear
                 </button>
+                <button
+                  type="button"
+                  onClick={handleExplain}
+                  disabled={!result || !selectedRoom || explaining}
+                  className="inline-flex items-center gap-2 rounded-lg border border-violet-300 bg-white px-4 py-2.5 text-sm font-semibold text-violet-600 transition-colors hover:bg-violet-50 focus:outline-none focus:ring-2 focus:ring-violet-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Explain availability
+                </button>
               </div>
             </div>
 
@@ -261,6 +305,7 @@ function App() {
             </div>
 
             <ResultBanner result={result} />
+            <ExplanationPanel explanation={explanation} loading={explaining} />
 
             {selectedRoom && <RoomBookings room={selectedRoom} />}
           </section>

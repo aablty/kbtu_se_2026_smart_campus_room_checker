@@ -18,9 +18,12 @@ export function timeToMinutes(value: string): number | null {
   return h * 60 + m;
 }
 
+// Fixed demo clock (09:00), matching the scenario's "fixed current time"
+// requirement. The user can still edit it via the Current time input.
+export const DEMO_NOW_MINUTES = 9 * 60;
+
 export function nowDefault(): number {
-  const d = new Date();
-  return d.getHours() * 60 + d.getMinutes();
+  return DEMO_NOW_MINUTES;
 }
 
 export function defaultInterval(now: number): { start: string; end: string } {

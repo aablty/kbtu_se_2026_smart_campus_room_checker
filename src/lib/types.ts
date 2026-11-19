@@ -23,9 +23,21 @@ export interface RoomFilters {
 
 export type Decision = "available" | "unavailable";
 
+export type ReasonCode =
+  | "available"
+  | "invalid-time"
+  | "start-before-day"
+  | "end-after-day"
+  | "start-after-end"
+  | "start-in-past"
+  | "duration-exceeded"
+  | "room-blocked"
+  | "overlap";
+
 export interface CheckResult {
   decision: Decision;
   reason: string;
+  reasonCode: ReasonCode;
 }
 
 export const MINUTE_MAX = 1440;

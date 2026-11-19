@@ -19,21 +19,38 @@ export function checkAvailability(
   nowMinutes: number,
 ): CheckResult {
   if (!Number.isFinite(start) || !Number.isFinite(end)) {
-    return { decision: "unavailable", reason: "Please enter valid start and end times." };
+    return {
+      decision: "unavailable",
+      reason: "Please enter valid start and end times.",
+      reasonCode: "invalid-time",
+    };
   }
   if (start < 0) {
-    return { decision: "unavailable", reason: "Start time cannot be before 00:00." };
+    return {
+      decision: "unavailable",
+      reason: "Start time cannot be before 00:00.",
+      reasonCode: "start-before-day",
+    };
   }
   if (end > MINUTE_MAX) {
-    return { decision: "unavailable", reason: "End time cannot go past 24:00 (1440)." };
+    return {
+      decision: "unavailable",
+      reason: "End time cannot go past 24:00 (1440).",
+      reasonCode: "end-after-day",
+    };
   }
   if (start >= end) {
-    return { decision: "unavailable", reason: "Start time must be before end time." };
+    return {
+      decision: "unavailable",
+      reason: "Start time must be before end time.",
+      reasonCode: "start-after-end",
+    };
   }
   if (start <= nowMinutes) {
     return {
       decision: "unavailable",
       reason: `Start time must be after the current time (${formatTime(nowMinutes)}).`,
+      reasonCode: "start-in-past",
     };
   }
 
@@ -41,6 +58,7 @@ export function checkAvailability(
     return {
       decision: "unavailable",
       reason: `Booking is ${end - start} minutes, which exceeds the 120-minute limit.`,
+      reasonCode: "duration-exceeded",
     };
   }
 
@@ -48,6 +66,7 @@ export function checkAvailability(
     return {
       decision: "unavailable",
       reason: "This room is currently blocked and cannot be booked.",
+      reasonCode: "room-blocked",
     };
   }
 
@@ -56,8 +75,13 @@ export function checkAvailability(
     return {
       decision: "unavailable",
       reason: `Overlaps "${conflict.title}" (${formatTime(conflict.start)}–${formatTime(conflict.end)}).`,
+      reasonCode: "overlap",
     };
   }
 
-  return { decision: "available", reason: "This slot is open and ready to book." };
+  return {
+    decision: "available",
+    reason: "This slot is open and ready to book.",
+    reasonCode: "available",
+  };
 }
