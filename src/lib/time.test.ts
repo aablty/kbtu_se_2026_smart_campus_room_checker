@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { defaultInterval, formatTime, timeToMinutes } from "@/lib/time";
+import { DEMO_NOW_MINUTES, defaultInterval, formatTime, nowDefault, timeToMinutes } from "@/lib/time";
 
 describe("time helpers", () => {
+  it("uses a fixed demo clock (09:00), not the system clock", () => {
+    expect(nowDefault()).toBe(DEMO_NOW_MINUTES);
+    expect(formatTime(nowDefault())).toBe("09:00");
+  });
+
   it("accepts end-of-day 24:00", () => {
     expect(timeToMinutes("24:00")).toBe(1440);
     expect(formatTime(1440)).toBe("24:00");

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, Clock, DoorOpen, Search } from "lucide-react";
 
 import { RoomCard } from "@/components/RoomCard";
@@ -32,13 +32,25 @@ function App() {
 
   const visibleRooms = useMemo(() => filterRooms(rooms, filters), [rooms, filters]);
 
+  // Bumped on every clearResult(), so a still-pending explainAvailability
+  // response can detect it has gone stale and must not repaint the panel.
+  const explainTokenRef = useRef(0);
+
+  // Any input that invalidates the current result must also drop the
+  // explanation, otherwise it keeps describing a result that no longer applies.
+  const clearResult = () => {
+    explainTokenRef.current += 1;
+    setResult(null);
+    setExplanation(null);
+    setExplaining(false);
+  };
+
   // F5: if the current selection is filtered out, fall back to the first
   // visible room (or none) and clear any stale availability result.
   useEffect(() => {
     if (!visibleRooms.some((r) => r.id === selectedId)) {
       setSelectedId(visibleRooms[0]?.id ?? "");
-      setResult(null);
-      setExplanation(null);
+      clearResult();
     }
   }, [visibleRooms, selectedId]);
 
@@ -53,7 +65,7 @@ function App() {
     startMinutes != null && endMinutes != null ? endMinutes - startMinutes : null;
 
   const handleCheck = () => {
-    setExplanation(null);
+    clearResult();
     if (!selectedRoom) {
       setResult({ decision: "unavailable", reason: "Select a room first.", reasonCode: "invalid-time" });
       return;
@@ -79,18 +91,17 @@ function App() {
   };
 
   const handleReset = () => {
-    setResult(null);
-    setExplanation(null);
+    clearResult();
   };
 
   const handleSelectRoom = (roomId: string) => {
     setSelectedId(roomId);
-    setResult(null);
-    setExplanation(null);
+    clearResult();
   };
 
   const handleExplain = async () => {
     if (!selectedRoom || !result || startMinutes == null || endMinutes == null) return;
+    const token = ++explainTokenRef.current;
     setExplaining(true);
     const res = await explainAvailability({
       roomLabel: selectedRoom.name,
@@ -99,6 +110,7 @@ function App() {
       isAvailable: result.decision === "available",
       reasonCode: result.reasonCode,
     });
+    if (explainTokenRef.current !== token) return; // stale: input changed while awaiting
     setExplanation(res.explanation);
     setExplaining(false);
   };
@@ -162,8 +174,7 @@ function App() {
                     onChange={(e) => {
                       const m = timeToMinutes(e.target.value);
                       if (m != null) setNowMinutes(m);
-                      setResult(null);
-                      setExplanation(null);
+                      clearResult();
                     }}
                     className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
@@ -192,8 +203,7 @@ function App() {
                     value={startInput}
                     onChange={(e) => {
                       setStartInput(e.target.value);
-                      setResult(null);
-                      setExplanation(null);
+                      clearResult();
                     }}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
@@ -217,8 +227,7 @@ function App() {
                     value={endInput}
                     onChange={(e) => {
                       setEndInput(e.target.value);
-                      setResult(null);
-                      setExplanation(null);
+                      clearResult();
                     }}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />

@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import App from "./App";
 
 function setTime(labelPattern: RegExp, value: string) {
@@ -33,6 +33,23 @@ describe("App integration — F3, F4, F5", () => {
     expect(
       screen.getByText(/select a room and enter a time interval/i),
     ).toBeInTheDocument();
+  });
+
+  it("R-F4 mitigation: switching room clears a generated explanation, not just the result", async () => {
+    render(<App />);
+
+    setTime(/Current time/, "08:00");
+    setTime(/Start time/, "10:00");
+    setTime(/End time/, "10:30");
+    fireEvent.click(screen.getByRole("button", { name: /check availability/i }));
+    fireEvent.click(screen.getByRole("button", { name: /explain availability/i }));
+    await waitFor(() =>
+      expect(screen.queryByText(/generating explanation/i)).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText(/generated explanation/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(/C-310/));
+    expect(screen.queryByText(/generated explanation/i)).not.toBeInTheDocument();
   });
 
   it("F4: an impossible attendee requirement shows the empty state and no room cards", () => {
